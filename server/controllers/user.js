@@ -1,8 +1,10 @@
 const User = require("../models/user");
+const { OAuth2Client } = require('google-auth-library');
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const tryCatch = require("../utils/tryCatch");
 const { uploadToCloudinary } = require("../utils/cloudinary");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 async function register(req, res) {
   const { name, email, password } = req.body;
@@ -97,6 +99,61 @@ async function myProfile(req, res) {
   });
 }
 
+async function googleAuth(req, res) {
+    const { token } = req.body;
+
+    if (!token) {
+        return res.status(400).json({ message: 'Google token is required' });
+    }
+
+    // verify google token
+    const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const { name, email, picture, sub } = ticket.getPayload();
+
+    // check if user exists
+    let user = await User.findOne({ email });
+
+    if (user) {
+        // existing user — update googleId if not set
+        if (!user.googleId) {
+            user.googleId = sub;
+            user.profilePic = user.profilePic || picture;
+            await user.save();
+        }
+    } else {
+        // new user — create account
+        user = await User.create({
+            name,
+            email,
+            googleId: sub,
+            profilePic: picture,
+        });
+    }
+
+    // generate JWT
+    const jwtToken = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SEC,
+        { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
+
+    return res.status(200).json({
+        message: 'Google login successful',
+        token: jwtToken,
+        user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            profilePic: user.profilePic,
+        },
+    });
+}
+
 async function updateProfile(req, res) {
   const { name } = req.body;
   const updateData = { name };
@@ -159,6 +216,7 @@ async function logout(req, res) {
 module.exports = {
   register: tryCatch(register),
   login: tryCatch(login),
+  googleAuth: tryCatch(googleAuth),
   myProfile: tryCatch(myProfile),
   updateProfile: tryCatch(updateProfile),
   changePassword: tryCatch(changePassword),

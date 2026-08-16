@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import NotFound from './pages/404'
 import Profile from './pages/Profile'
 import Dashboard from './pages/Dashboard'
 import CreatePortfolio from './pages/CreatePortfolio'
@@ -16,6 +17,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/view/:slug" element={<PublicPortfolio />} />
+      <Route path="*" element={<NotFound />} />
       
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>

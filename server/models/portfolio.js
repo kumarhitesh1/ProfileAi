@@ -17,6 +17,7 @@ const portfolioSchema = new mongoose.Schema(
     },
     profilePic: {
       type: String,
+      default: null,
     },
     education: [
       {
@@ -65,6 +66,10 @@ const portfolioSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true, // allows multiple null values
+    },
+    publicTheme: {
+      type: String,
+      default: null,
     },
     views: {
       type: Number,

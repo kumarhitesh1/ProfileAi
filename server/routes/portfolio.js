@@ -13,6 +13,7 @@ const {
     downloadPortfolio,
     deleteGeneratedHtml,
     updateCustomSlug,
+    setPublicTheme,
 } = require('../controllers/portfolio');
 const { isAuth } = require('../middlewares/isAuth');
 const { upload } = require('../utils/cloudinary');
@@ -24,6 +25,7 @@ router.put('/portfolio/update/:id', isAuth, upload.single('profilePic'), updateP
 router.delete('/portfolio/delete/:id', isAuth, deletePortfolio);
 router.post('/portfolio/generate/:id', isAuth, generatePortfolio);
 router.get('/portfolio/view/:slug', getPortfolioBySlug);
+router.put('/portfolio/public-theme/:id', isAuth, setPublicTheme);
 router.get('/portfolio/stats', isAuth, getStats);
 router.put('/portfolio/toggle/:id', isAuth, toggleVisibility);
 router.get('/portfolio/download/:id', isAuth, downloadPortfolio);

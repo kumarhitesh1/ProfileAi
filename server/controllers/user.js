@@ -25,12 +25,22 @@ async function register(req, res) {
     profilePic = result.secure_url;
   }
   const hashedPassword = await bcrypt.hash(password, 10);
-  const user = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-    profilePic,
-  });
+
+  let user;
+  try {
+    user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      profilePic,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+    throw error;
+  }
+
   const token = jwt.sign({ id: user._id }, process.env.JWT_SEC, {
     expiresIn: process.env.JWT_EXPIRES_IN,
   });
@@ -106,35 +116,28 @@ async function googleAuth(req, res) {
         return res.status(400).json({ message: 'Google token is required' });
     }
 
-    // verify google token
     const ticket = await client.verifyIdToken({
         idToken: token,
         audience: process.env.GOOGLE_CLIENT_ID,
     });
 
-    const { name, email, picture, sub } = ticket.getPayload();
+    const { name, email, sub } = ticket.getPayload(); // removed picture
 
-    // check if user exists
     let user = await User.findOne({ email });
 
     if (user) {
-        // existing user — update googleId if not set
         if (!user.googleId) {
             user.googleId = sub;
-            user.profilePic = user.profilePic || picture;
             await user.save();
         }
     } else {
-        // new user — create account
         user = await User.create({
             name,
             email,
             googleId: sub,
-            profilePic: picture,
         });
     }
 
-    // generate JWT
     const jwtToken = jwt.sign(
         { id: user._id },
         process.env.JWT_SEC,
@@ -155,34 +158,36 @@ async function googleAuth(req, res) {
 }
 
 async function updateProfile(req, res) {
-  const { name } = req.body;
-  const updateData = { name };
+    const { name } = req.body;
+    const updateData = { name };
 
-  if (req.file) {
-    const result = await uploadToCloudinary(req.file);
-    updateData.profilePic = result.secure_url;
-  }
+    if (req.file) {
+        const result = await uploadToCloudinary(req.file);
+        updateData.profilePic = result.secure_url;
+    } else if (req.body.profilePic === 'null' || req.body.profilePic === null) {
+        updateData.profilePic = null;
+    }
 
-  const user = await User.findByIdAndUpdate(req.user.id, updateData, {
-    new: true,
-  });
+    const user = await User.findByIdAndUpdate(
+        req.user.id,
+        updateData,
+        { new: true }
+    );
 
-  if (!user) {
-    return res.status(404).json({
-      message: "User not found",
+    if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+
+    return res.status(200).json({
+        message: 'Profile updated successfully',
+        user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            profilePic: user.profilePic,
+            role: user.role,
+        }
     });
-  }
-
-  return res.status(200).json({
-    message: "Profile updated successfully",
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      profilePic: user.profilePic,
-      role: user.role,
-    },
-  });
 }
 
 async function changePassword(req, res) {
@@ -191,6 +196,11 @@ async function changePassword(req, res) {
   if (!user) {
     return res.status(404).json({
       message: "User not found",
+    });
+  }
+  if (!user.password) {
+    return res.status(400).json({
+      message: "This account uses Google login and has no password to change",
     });
   }
   const isMatch = await bcrypt.compare(currentPassword, user.password);

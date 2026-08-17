@@ -21,6 +21,12 @@ async function isAuth(req, res, next) {
       });
     }
 
+    if (user.tokenVersion !== decoded.tokenVersion) {
+      return res.status(401).json({
+        message: "Please Login",
+      });
+    }
+
     req.user = user;
     next();
   } catch (error) {

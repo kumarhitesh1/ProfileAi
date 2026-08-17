@@ -32,22 +32,20 @@ function Navbar() {
                 >
                   Dashboard
                 </Link>
-                <Link
-                  to="/profile"
-                  className="text-gray-300 hover:text-white text-sm transition"
-                >
-                  Profile
+                <Link to="/profile">
+                  <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0 overflow-hidden cursor-pointer hover:ring-2 hover:ring-purple-400 transition">
+                    {user.profilePic ? (
+                      <img
+                        src={user.profilePic}
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      user.name?.charAt(0).toUpperCase()
+                    )}
+                  </div>
                 </Link>
-                <div className="flex items-center gap-3">
-                  {user.profilePic && (
-                    <img
-                      src={user.profilePic}
-                      alt={user.name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  )}
-                  <span className="text-gray-300 text-sm">{user.name}</span>
-                </div>
+                
                 <button
                   onClick={handleLogout}
                   className="text-sm px-4 py-2 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition"

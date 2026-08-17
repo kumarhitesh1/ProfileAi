@@ -714,6 +714,7 @@ function EditPortfolio() {
                     srcDoc={portfolio.generatedHtml[previewTheme]}
                     className="w-full h-[600px] border-0"
                     title="Portfolio Preview"
+                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                   />
                 )}
               </div>

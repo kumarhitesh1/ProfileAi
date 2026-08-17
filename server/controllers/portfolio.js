@@ -25,6 +25,13 @@ async function createPortfolio(req, res) {
     body.socialLinks = JSON.parse(body.socialLinks);
   if (typeof body.skills === "string") body.skills = JSON.parse(body.skills);
 
+  if (body.theme && !ALLOWED_THEMES.includes(body.theme)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid theme: ${body.theme}`,
+    });
+  }
+
   const slug =
     slugify(body.name || req.user.name, { lower: true }) + "-" + Date.now();
 
@@ -95,6 +102,13 @@ async function updatePortfolio(req, res) {
     body.profilePic = null;
   }
 
+  if (body.theme && !ALLOWED_THEMES.includes(body.theme)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid theme: ${body.theme}`,
+    });
+  }
+
   if (req.file) {
     const result = await uploadToCloudinary(req.file);
     body.profilePic = result.secure_url;
@@ -103,7 +117,7 @@ async function updatePortfolio(req, res) {
   const portfolio = await Portfolio.findOneAndUpdate(
     { _id: id, user: req.user.id },
     body,
-    { returnDocument: 'after' },
+    { returnDocument: "after" },
   );
   if (!portfolio) {
     return res
@@ -272,27 +286,47 @@ const injectTemplate = (template, portfolio, enhanced) => {
   return html;
 };
 
+const ALLOWED_THEMES = [
+  "minimal",
+  "dark",
+  "cyberpunk",
+  "glassmorphism",
+  "creative",
+];
 async function generatePortfolio(req, res) {
-    const { id } = req.params;
-    const theme = req.body?.theme; 
+  const { id } = req.params;
+  const requestedTheme = req.body?.theme;
 
-    const portfolio = await Portfolio.findOne({ _id: id, user: req.user.id });
-    if (!portfolio) {
-        return res.status(404).json({ success: false, message: 'Portfolio not found' });
-    }
+  const portfolio = await Portfolio.findOne({ _id: id, user: req.user.id });
+  if (!portfolio) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Portfolio not found" });
+  }
 
-    const selectedTheme = theme || portfolio.theme;
+  const selectedTheme = requestedTheme || portfolio.theme;
 
-    const templatePath = path.join(__dirname, '../templates', `${selectedTheme}.html`);
-    if (!fs.existsSync(templatePath)) {
-        return res.status(400).json({
-            success: false,
-            message: `Template not found for theme: ${selectedTheme}`,
-        });
-    }
-    const template = fs.readFileSync(templatePath, 'utf-8');
+  if (!ALLOWED_THEMES.includes(selectedTheme)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid theme: ${selectedTheme}`,
+    });
+  }
 
-    const prompt = `
+  const templatePath = path.join(
+    __dirname,
+    "../templates",
+    `${selectedTheme}.html`,
+  );
+  if (!fs.existsSync(templatePath)) {
+    return res.status(400).json({
+      success: false,
+      message: `Template not found for theme: ${selectedTheme}`,
+    });
+  }
+  const template = fs.readFileSync(templatePath, "utf-8");
+
+  const prompt = `
 You are a professional portfolio content writer.
 Enhance this portfolio data and return ONLY a valid JSON object.
 No explanation, no markdown, no backticks, just pure JSON.
@@ -300,7 +334,7 @@ No explanation, no markdown, no backticks, just pure JSON.
 Input data:
 - Name: ${portfolio.name}
 - Description: ${portfolio.description}
-- Skills: ${portfolio.skills.join(', ')}
+- Skills: ${portfolio.skills.join(", ")}
 - Experience: ${JSON.stringify(portfolio.experience)}
 - Projects: ${JSON.stringify(portfolio.projects)}
 - Education: ${JSON.stringify(portfolio.education)}
@@ -333,76 +367,82 @@ Return this exact JSON structure:
     ]
 }`;
 
-    const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 2000,
+  const completion = await groq.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 2000,
+  });
+
+  let enhanced;
+  try {
+    const raw = completion.choices[0].message.content
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+    enhanced = JSON.parse(raw);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "AI failed to return valid JSON — try again",
+      error: error.message,
     });
+  }
 
-    let enhanced;
-    try {
-        const raw = completion.choices[0].message.content
-            .replace(/```json/g, '')
-            .replace(/```/g, '')
-            .trim();
-        enhanced = JSON.parse(raw);
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'AI failed to return valid JSON — try again',
-            error: error.message,
-        });
-    }
+  const generatedHtml = injectTemplate(template, portfolio, enhanced);
 
-    const generatedHtml = injectTemplate(template, portfolio, enhanced);
+  await Portfolio.findByIdAndUpdate(id, {
+    [`generatedHtml.${selectedTheme}`]: generatedHtml,
+    theme: selectedTheme,
+  });
 
-    await Portfolio.findByIdAndUpdate(id, {
-        [`generatedHtml.${selectedTheme}`]: generatedHtml,
-        theme: selectedTheme,
-    });
-
-    res.status(200).json({
-        success: true,
-        generatedHtml,
-    });
+  res.status(200).json({
+    success: true,
+    generatedHtml,
+  });
 }
 
 async function getPortfolioBySlug(req, res) {
-    const { slug } = req.params;
-    const portfolio = await Portfolio.findOneAndUpdate(
-        {
-            $or: [{ customSlug: slug }, { slug: slug }],
-            isPublic: true,
-        },
-        { $inc: { views: 1 } },
-        { returnDocument: 'after' }
-    );
-    if (!portfolio) {
-        return res.status(404).json({ success: false, message: 'Portfolio not found' });
-    }
+  const { slug } = req.params;
+  const portfolio = await Portfolio.findOneAndUpdate(
+    {
+      $or: [{ customSlug: slug }, { slug: slug }],
+      isPublic: true,
+    },
+    { $inc: { views: 1 } },
+    { returnDocument: "after" },
+  );
+  if (!portfolio) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Portfolio not found" });
+  }
 
-    const generatedHtml = {}
-    portfolio.generatedHtml.forEach((value, key) => {
-        generatedHtml[key] = value
-    })
+  const generatedHtml = {};
+  portfolio.generatedHtml.forEach((value, key) => {
+    generatedHtml[key] = value;
+  });
 
-    const selectedTheme = portfolio.publicTheme ||
-        [...portfolio.generatedHtml.keys()][0];
+  const selectedTheme =
+    portfolio.publicTheme || [...portfolio.generatedHtml.keys()][0];
 
-    res.status(200).json({
-        success: true,
-        data: {
-            ...portfolio.toObject(),
-            generatedHtml,
-            activeTheme: selectedTheme,
-            availableThemes: [...portfolio.generatedHtml.keys()],
-        },
-    });
+  res.status(200).json({
+    success: true,
+    data: {
+      ...portfolio.toObject(),
+      generatedHtml,
+      activeTheme: selectedTheme,
+      availableThemes: [...portfolio.generatedHtml.keys()],
+    },
+  });
 }
 
 async function setPublicTheme(req, res) {
     const { id } = req.params;
     const { theme } = req.body;
+
+    if (!ALLOWED_THEMES.includes(theme)) {
+        return res.status(400).json({ success: false, message: `Invalid theme: ${theme}` });
+    }
 
     const portfolio = await Portfolio.findOneAndUpdate(
         { _id: id, user: req.user.id },
@@ -410,15 +450,17 @@ async function setPublicTheme(req, res) {
         { returnDocument: 'after' }
     );
 
-    if (!portfolio) {
-        return res.status(404).json({ success: false, message: 'Portfolio not found' });
-    }
+  if (!portfolio) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Portfolio not found" });
+  }
 
-    res.status(200).json({
-        success: true,
-        message: `Public theme set to ${theme}`,
-        data: portfolio,
-    });
+  res.status(200).json({
+    success: true,
+    message: `Public theme set to ${theme}`,
+    data: portfolio,
+  });
 }
 
 async function getStats(req, res) {
@@ -467,12 +509,10 @@ async function downloadPortfolio(req, res) {
     portfolio.generatedHtml.get(portfolio.theme);
 
   if (!html) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Portfolio has not been generated yet",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Portfolio has not been generated yet",
+    });
   }
 
   res.setHeader("Content-Type", "text/html");
@@ -540,7 +580,7 @@ async function updateCustomSlug(req, res) {
     portfolio = await Portfolio.findOneAndUpdate(
       { _id: id, user: req.user.id },
       { customSlug },
-      { returnDocument: 'after' },
+      { returnDocument: "after" },
     );
   } catch (error) {
     if (error.code === 11000) {
@@ -572,7 +612,7 @@ module.exports = {
   deletePortfolio: tryCatch(deletePortfolio),
   generatePortfolio: tryCatch(generatePortfolio),
   getPortfolioBySlug: tryCatch(getPortfolioBySlug),
-  setPublicTheme:tryCatch(setPublicTheme),
+  setPublicTheme: tryCatch(setPublicTheme),
   getStats: tryCatch(getStats),
   toggleVisibility: tryCatch(toggleVisibility),
   downloadPortfolio: tryCatch(downloadPortfolio),

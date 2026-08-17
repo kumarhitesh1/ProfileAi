@@ -41,9 +41,11 @@ async function register(req, res) {
     throw error;
   }
 
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SEC, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
-  });
+  const token = jwt.sign(
+    { id: user._id, tokenVersion: user.tokenVersion },
+    process.env.JWT_SEC,
+    { expiresIn: process.env.JWT_EXPIRES_IN },
+  );
   return res.status(201).json({
     message: "User registered successfully",
     token,
@@ -81,9 +83,11 @@ async function login(req, res) {
       message: "Invalid Credentials",
     });
   }
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SEC, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
-  });
+  const token = jwt.sign(
+    { id: user._id, tokenVersion: user.tokenVersion },
+    process.env.JWT_SEC,
+    { expiresIn: process.env.JWT_EXPIRES_IN },
+  );
   return res.status(200).json({
     message: "User logged in successfully",
     token,
@@ -121,7 +125,7 @@ async function googleAuth(req, res) {
         audience: process.env.GOOGLE_CLIENT_ID,
     });
 
-    const { name, email, sub } = ticket.getPayload(); // removed picture
+    const { name, email, sub } = ticket.getPayload();
 
     let user = await User.findOne({ email });
 
@@ -139,7 +143,7 @@ async function googleAuth(req, res) {
     }
 
     const jwtToken = jwt.sign(
-        { id: user._id },
+        { id: user._id, tokenVersion: user.tokenVersion },
         process.env.JWT_SEC,
         { expiresIn: process.env.JWT_EXPIRES_IN }
     );
@@ -211,13 +215,15 @@ async function changePassword(req, res) {
   }
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   user.password = hashedPassword;
+  user.tokenVersion += 1; // invalidate all existing sessions on password change
   await user.save();
   return res.status(200).json({
-    message: "Password changed successfully",
+    message: "Password changed successfully. Please log in again.",
   });
 }
 
 async function logout(req, res) {
+  await User.findByIdAndUpdate(req.user.id, { $inc: { tokenVersion: 1 } });
   return res.status(200).json({
     message: "User logged out successfully",
   });

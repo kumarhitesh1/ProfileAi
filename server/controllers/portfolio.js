@@ -1,4 +1,4 @@
-const Portfolio = require("../models/Portfolio");
+const Portfolio = require("../models/portfolio");
 const tryCatch = require("../utils/tryCatch");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const slugify = require("slugify");

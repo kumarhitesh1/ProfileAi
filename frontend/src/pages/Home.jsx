@@ -41,12 +41,6 @@ function Home() {
                         >
                             {user ? 'Go to Dashboard →' : 'Get Started Free →'}
                         </Link>
-                        <Link
-                            to="/view/hiteshkumar"
-                            className="px-8 py-4 border border-gray-700 hover:border-gray-500 rounded-xl font-semibold text-lg transition text-gray-300 hover:text-white w-full sm:w-auto text-center"
-                        >
-                            See Example →
-                        </Link>
                     </div>
                 </div>
             </section>

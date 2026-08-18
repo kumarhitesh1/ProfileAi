@@ -368,7 +368,7 @@ Return this exact JSON structure:
 }`;
 
   const completion = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
+    model: "groq/compound",
     messages: [{ role: "user", content: prompt }],
     max_tokens: 2000,
   });
@@ -437,18 +437,20 @@ async function getPortfolioBySlug(req, res) {
 }
 
 async function setPublicTheme(req, res) {
-    const { id } = req.params;
-    const { theme } = req.body;
+  const { id } = req.params;
+  const { theme } = req.body;
 
-    if (!ALLOWED_THEMES.includes(theme)) {
-        return res.status(400).json({ success: false, message: `Invalid theme: ${theme}` });
-    }
+  if (!ALLOWED_THEMES.includes(theme)) {
+    return res
+      .status(400)
+      .json({ success: false, message: `Invalid theme: ${theme}` });
+  }
 
-    const portfolio = await Portfolio.findOneAndUpdate(
-        { _id: id, user: req.user.id },
-        { publicTheme: theme },
-        { returnDocument: 'after' }
-    );
+  const portfolio = await Portfolio.findOneAndUpdate(
+    { _id: id, user: req.user.id },
+    { publicTheme: theme },
+    { returnDocument: "after" },
+  );
 
   if (!portfolio) {
     return res

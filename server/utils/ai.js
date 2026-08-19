@@ -1,7 +1,8 @@
-const {Groq}=require('groq-sdk');
+const OpenAI = require('openai');
 
-const groq=new Groq({
-    apiKey: process.env.GROQ_API_KEY,
+const groq = new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: 'https://openrouter.ai/api/v1',
 });
 
-module.exports={groq};
+module.exports = { groq };

@@ -368,10 +368,15 @@ Return this exact JSON structure:
 }`;
 
   const completion = await groq.chat.completions.create({
-    model: "groq/compound",
-    messages: [{ role: "user", content: prompt }],
+    model: 'openrouter/free',
+    messages: [{ role: 'user', content: prompt }],
     max_tokens: 2000,
-  });
+}, {
+    headers: {
+        'HTTP-Referer': 'https://profile-ai-lime.vercel.app',
+        'X-Title': 'ProfileAI',
+    }
+});
 
   let enhanced;
   try {

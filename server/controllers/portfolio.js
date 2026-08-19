@@ -365,7 +365,9 @@ Return this exact JSON structure:
             "year": "Year"
         }
     ]
-}`;
+}
+
+IMPORTANT: Your entire response must be the JSON object above and nothing else. Do not include any text before or after it.`;
 
   const completion = await groq.chat.completions.create({
     model: 'openrouter/free',
@@ -380,10 +382,19 @@ Return this exact JSON structure:
 
   let enhanced;
   try {
-    const raw = completion.choices[0].message.content
+    let raw = completion.choices[0].message.content
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
+
+    // Some free models prepend/append prose around the JSON —
+    // pull out just the {...} object instead of failing outright.
+    const jsonStart = raw.indexOf("{");
+    const jsonEnd = raw.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      raw = raw.slice(jsonStart, jsonEnd + 1);
+    }
+
     enhanced = JSON.parse(raw);
   } catch (error) {
     return res.status(500).json({
